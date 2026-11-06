@@ -13,7 +13,6 @@ The distance matrices are one-way: the distance from A to B is usually different
 ```
 Source.cpp                     main program
 data/distance_matrix_1-9.csv   distance matrices (64 to 85 locations each)
-docs/pseudocode_nn_two_opt.txt pseudocode, complexity and hand trace
 ```
 
 ## Build and run

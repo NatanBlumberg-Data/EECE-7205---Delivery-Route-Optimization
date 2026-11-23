@@ -45,6 +45,90 @@ vector<vector<double>> loadData() {
 }
 
 
+bool isNumber(string value) {
+    int digitCount = 0;
+    int pointCount = 0;
+
+    for (int i = 0; i < (int)value.size(); i++) {
+        if (value[i] >= '0' && value[i] <= '9') {
+            digitCount = digitCount + 1;
+        }
+        else if (value[i] == '.') {
+            pointCount = pointCount + 1;
+        }
+        else if (value[i] != '\r' || i != (int)value.size() - 1) {
+            return false;
+        }
+    }
+
+    if (digitCount == 0 || pointCount > 1) {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool checkData() {
+    ifstream file("data/distance_matrix_1.csv");
+
+    if (!file.is_open()) {
+        return true;
+    }
+
+    string line;
+    vector<string> rowLabels;
+    vector<int> valueCounts;
+
+    getline(file, line);
+
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string value;
+        string rowLabel;
+        int valueCount = 0;
+
+        getline(ss, rowLabel, ',');
+
+        while (getline(ss, value, ',')) {
+            if (value.empty() == false) {
+                if (isNumber(value) == false) {
+                    if (value == "\r") {
+                        cout << "Error: the file has empty cells and Windows line endings, so save it with LF line endings" << endl;
+                    }
+                    else {
+                        cout << "Error: row " << rowLabel << " has a value that is not a distance: " << value << endl;
+                    }
+
+                    file.close();
+                    return false;
+                }
+
+                valueCount = valueCount + 1;
+            }
+        }
+
+        if (valueCount > 0) {
+            rowLabels.push_back(rowLabel);
+            valueCounts.push_back(valueCount);
+        }
+    }
+
+    file.close();
+
+    int rowCount = (int)rowLabels.size();
+
+    for (int row = 0; row < rowCount; row++) {
+        if (valueCounts[row] != rowCount) {
+            cout << "Error: row " << rowLabels[row] << " has " << valueCounts[row] << " values but the matrix has " << rowCount << " rows" << endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
 vector<int> nearestNeighbor(vector<vector<double>> distanceMatrix) {
     int n = distanceMatrix.size();
     int startLocation = 0;
@@ -70,6 +154,10 @@ vector<int> nearestNeighbor(vector<vector<double>> distanceMatrix) {
                     nearestLocation = i;
                 }
             }
+        }
+
+        if (nearestLocation == -1) {
+            return route;
         }
 
         route.push_back(nearestLocation);
@@ -254,6 +342,10 @@ vector<int> simulatedAnnealing(vector<int> initialRoute, vector<vector<double>> 
 
 int main() {
 
+    if (checkData() == false) {
+        return 0;
+    }
+
     vector<vector<double>> distanceMatrix = loadData();
 
     if (distanceMatrix.empty()) {
@@ -262,6 +354,11 @@ int main() {
     }
 
     vector<int> initialRoute = nearestNeighbor(distanceMatrix);
+
+    if (initialRoute.size() < distanceMatrix.size()) {
+        cout << "Error: Nearest-Neighbor could not reach every location" << endl;
+        return 0;
+    }
 
     double initialDistance = calculateRouteDistance(initialRoute, distanceMatrix);
 
@@ -274,6 +371,11 @@ int main() {
     cout << initialRoute[0] << endl;
 
     cout << "Initial Distance: " << initialDistance << endl;
+
+    if (initialRoute.size() < 3) {
+        cout << "Fewer than 3 locations, so this is the only route: 2-opt and Simulated Annealing are skipped" << endl;
+        return 0;
+    }
 
     // ------------------ 2-opt ---------------------------------------------//
 

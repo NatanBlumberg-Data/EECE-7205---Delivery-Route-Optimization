@@ -11,9 +11,21 @@ The distance matrices are one-way: the distance from A to B is usually different
 ## Files
 
 ```
-src/Source.cpp                 main program
-data/distance_matrix_1-9.csv   distance matrices (64 to 85 locations each)
+src/Source.cpp                         main program
+data/distance_matrix_1-9.csv           distance matrices (64 to 85 locations each)
+initial-testing/                       inputs for the eight Initial Testing cases
+    test1_normal/data/                 normal input: 5 locations
+    test2_two_locations/data/          boundary case: 2 locations
+    test3_one_location/data/           boundary case: depot only
+    test4_non_numeric/data/            invalid input: N/A in one cell
+    test5_missing_cell/data/           invalid input: one blank cell
+    test6_empty/data/                  empty input: 0-byte file
+    test7_unreachable/data/            no-solution case: inf in one column
+    test8_largest/data/                larger input: copy of distance_matrix_9.csv (85 locations)
+    reference_check.py                 independent Python check of Nearest-Neighbor and 2-opt
 ```
+
+Each test folder holds its matrix as `data/distance_matrix_1.csv`, the file name the program opens.
 
 ## Build and run
 

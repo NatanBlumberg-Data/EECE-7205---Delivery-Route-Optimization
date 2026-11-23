@@ -11,7 +11,7 @@ The distance matrices are one-way: the distance from A to B is usually different
 ## Files
 
 ```
-Source.cpp                     main program
+src/Source.cpp                 main program
 data/distance_matrix_1-9.csv   distance matrices (64 to 85 locations each)
 ```
 
@@ -20,8 +20,10 @@ data/distance_matrix_1-9.csv   distance matrices (64 to 85 locations each)
 Run the program from the repository root, because the program opens `data/...` with a relative path.
 
 ```
-g++ -std=c++17 -Wall -Wextra -o route_optimizer Source.cpp
+g++ -std=c++17 -Wall -Wextra -o route_optimizer src/Source.cpp
 ./route_optimizer
 ```
 
-The program loads `data/distance_matrix_1.csv` (the file name is set in `loadData`), builds the Nearest-Neighbor route, improves it with 2-opt, and prints both routes and distances along with the 2-opt time and distance reduction.
+The program loads `data/distance_matrix_1.csv` (the file name is set in `loadData`), builds the Nearest-Neighbor route, and improves it with 2-opt and with 5 runs of Simulated Annealing. It prints the Nearest-Neighbor route and distance. For 2-opt and Simulated Annealing, it also prints the time and distance reduction, and for Simulated Annealing it reports the best route and the averages over the 5 runs.
+
+Before loading the file, the program checks it: every value must be a non-negative number, and every row must have one distance per location. If a value or row is wrong, the program prints which one and stops. With fewer than 3 locations there is only one route, so the program prints the Nearest-Neighbor route and skips 2-opt and Simulated Annealing.

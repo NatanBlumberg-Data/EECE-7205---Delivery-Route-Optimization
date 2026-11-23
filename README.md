@@ -4,7 +4,7 @@ A C++ program that plans a delivery route through every location in a pharmaceut
 
 - **Nearest-Neighbor** builds the starting route from location 0 (the depot).
 - **2-opt** improves that route by reversing segments while the route gets shorter.
-- **Simulated Annealing** (in progress) will improve the same starting route using 2-opt moves.
+- **Simulated Annealing** improves the same starting route using 2-opt moves.
 
 The distance matrices are one-way: the distance from A to B is usually different from B to A, so 2-opt counts the cost change of every edge inside a reversed segment, not just the two edges it replaces.
 

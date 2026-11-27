@@ -1,76 +1,244 @@
-// Reproduce Iteration 3 sample results; not a live benchmark.
-// Build: g++ -std=c++17 visualize.cpp -o visualize
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-#include <sstream>
-#include <vector>
-#include <string>
+#include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <iostream>
+#include <iomanip>
 #include <numeric>
-#include <filesystem>
+#include <random>
+#include <sstream>
 #include <stdexcept>
+#include <vector>
 using namespace std;
+using Matrix=vector<vector<double>>;
+using Route=vector<int>;
+struct Point{double x,y;};
+Matrix readCSV(const string& path){
+ ifstream f(path); if(!f) throw runtime_error("Cannot open dataset");
+ string line,cell; getline(f,line); Matrix d;
+ while(getline(f,line)){if(line.empty())continue; stringstream s(line); getline(s,cell,','); if(stoi(cell)!=(int)d.size())throw runtime_error("Unexpected row ID"); vector<double> row; while(getline(s,cell,','))row.push_back(stod(cell)); d.push_back(row);}
+ if(d.size()<3)throw runtime_error("Too few locations"); for(auto& r:d){if(r.size()!=d.size())throw runtime_error("Matrix not square"); for(double v:r)if(!isfinite(v)||v<0)throw runtime_error("Invalid distance");} return d;
+}
+// Original team algorithm functions from Source.cpp, unchanged.
+vector<int> nearestNeighbor(const vector<vector<double>>& distanceMatrix) {
+    int n = (int)distanceMatrix.size();
+    int startLocation = 0;
 
-namespace fs = std::filesystem;
+    vector<int> route;
+    vector<bool> visited(n, false);
 
-string number(double x, int precision=2) {
-    ostringstream s; s << fixed << setprecision(precision) << x; return s.str();
-}
-struct SVG {
-    ofstream out;
-    SVG(const fs::path& file, string title) : out(file) {
-        if (!out) throw runtime_error("Cannot open " + file.string());
-        out << "<svg xmlns='http://www.w3.org/2000/svg' width='960' height='520' viewBox='0 0 960 520'>\n";
-        out << "<rect width='960' height='520' fill='white'/>\n";
-        text(480,38,title,25);
+    route.push_back(startLocation);
+    visited[startLocation] = true;
+
+    int currentLocation = startLocation;
+
+    while ((int)route.size() < n) {
+        int nearestLocation = -1;
+        double shortestDistance = 999999999;
+
+        for (int i = 0; i < n; i++) {
+            if (visited[i] == false) {
+                double distance = distanceMatrix[currentLocation][i];
+
+                if (distance < shortestDistance) {
+                    shortestDistance = distance;
+                    nearestLocation = i;
+                }
+            }
+        }
+
+        if (nearestLocation == -1) {
+            return route;
+        }
+
+        route.push_back(nearestLocation);
+        visited[nearestLocation] = true;
+        currentLocation = nearestLocation;
     }
-    ~SVG(){out << "</svg>\n";}
-    void text(double x,double y,string s,int size=16,string color="#243247",string anchor="middle") {
-        out << "<text x='"<<x<<"' y='"<<y<<"' font-family='Arial,sans-serif' font-size='"<<size<<"' fill='"<<color<<"' text-anchor='"<<anchor<<"'>"<<s<<"</text>\n";
+
+    return route;
+}
+
+
+double calculateRouteDistance(const vector<int>& route, const vector<vector<double>>& distanceMatrix) {
+    double totalDistance = 0;
+
+    for (int i = 0; i < (int)route.size() - 1; i++) {
+        totalDistance += distanceMatrix[route[i]][route[i + 1]];
     }
-    void line(double x,double y,double a,double b,string c="#d5dbe3",int w=1,bool dash=false) {
-        out<<"<line x1='"<<x<<"' y1='"<<y<<"' x2='"<<a<<"' y2='"<<b<<"' stroke='"<<c<<"' stroke-width='"<<w<<"'"<<(dash?" stroke-dasharray='7 5'":"")<<"/>\n";
+
+    totalDistance += distanceMatrix[route[route.size() - 1]][route[0]];
+
+    return totalDistance;
+}
+
+vector<int> reverseSegment(const vector<int>& route, int left, int right) {
+    vector<int> newRoute = route;
+
+    while (left < right) {
+        int temp = newRoute[left];
+        newRoute[left] = newRoute[right];
+        newRoute[right] = temp;
+
+        left = left + 1;
+        right = right - 1;
     }
-    void rect(double x,double y,double w,double h,string c){out<<"<rect x='"<<x<<"' y='"<<y<<"' width='"<<w<<"' height='"<<h<<"' rx='3' fill='"<<c<<"'/>\n";}
-    void circle(double x,double y,double r,string c){out<<"<circle cx='"<<x<<"' cy='"<<y<<"' r='"<<r<<"' fill='"<<c<<"'/>\n";}
-};
-const string blue="#2563eb", green="#15803d", gray="#64748b";
-void bars(const fs::path& file,string title,string units,const vector<string>& labels,const vector<double>& values,double maximum,double step,int precision,bool logarithmic=false,string suffix="") {
-    SVG s(file,title);
-    auto y=[&](double v){return 400-310*(logarithmic?log10(v)/log10(maximum):v/maximum);};
-    for(double t=logarithmic?1:0;t<=maximum;t=logarithmic?t*10:t+step){s.line(100,y(t),910,y(t));s.text(88,y(t)+5,number(t,0),14,gray,"end");}
-    s.text(100,70,units,15,gray,"start");
-    double spacing=810.0/values.size();
-    for(size_t i=0;i<values.size();++i){double x=100+spacing*(i+.5), top=y(values[i]); string c=values.size()==2?(i?green:blue):(i==0?gray:i==1?blue:green);s.rect(x-65,top,130,400-top,c);s.text(x,top-10,number(values[i],precision)+suffix,18);s.text(x,430,labels[i],15);}
-    if(logarithmic)s.text(480,478,"Nearest-Neighbor time was not reported. SA time is average per run.",15,gray);
+
+    return newRoute;
 }
-void annealing(const fs::path& file,const vector<double>& runs,double twoOpt){
-    SVG s(file,"Day 1: Simulated Annealing Performance");
-    auto y=[](double v){return 400-(v-160)*15.5;};
-    for(int t=160;t<=180;t+=5){s.line(100,y(t),910,y(t));s.text(85,y(t)+5,to_string(t),14,gray,"end");}
-    s.text(100,70,"Distance (dataset units)",15,gray,"start");
-    double avg=accumulate(runs.begin(),runs.end(),0.0)/runs.size();
-    s.line(100,y(avg),910,y(avg),gray,2,true);s.line(100,y(twoOpt),910,y(twoOpt),blue,2,true);
-    for(size_t i=0;i<runs.size();++i){double x=160+160*i;if(i)s.line(x-160,y(runs[i-1]),x,y(runs[i]),green,3);s.circle(x,y(runs[i]),5,green);s.text(x,y(runs[i])-13,number(runs[i],1));s.text(x,430,"Run "+to_string(i+1));}
-    s.text(260,480,"SA average: "+number(avg),16,gray);s.text(680,480,"2-opt: "+number(twoOpt,1),16,blue);
+
+
+double twoOptChange(const vector<int>& route, const vector<vector<double>>& distanceMatrix, int segmentStart, int segmentEnd) {
+    int stopCount = route.size();
+
+    int before = route[segmentStart - 1];
+    int first = route[segmentStart];
+    int last = route[segmentEnd];
+    int after;
+
+    if (segmentEnd == stopCount - 1) {
+        after = route[0];
+    }
+    else {
+        after = route[segmentEnd + 1];
+    }
+
+    double segmentForward = 0;
+    double segmentBackward = 0;
+
+    for (int position = segmentStart; position < segmentEnd; position++) {
+        segmentForward = segmentForward + distanceMatrix[route[position]][route[position + 1]];
+        segmentBackward = segmentBackward + distanceMatrix[route[position + 1]][route[position]];
+    }
+
+    double oldEdges = distanceMatrix[before][first] + segmentForward + distanceMatrix[last][after];
+    double newEdges = distanceMatrix[before][last] + segmentBackward + distanceMatrix[first][after];
+
+    return newEdges - oldEdges;
 }
-void routes(const fs::path& file){
-    SVG s(file,"Five-location test case: Before and After");
-    vector<pair<double,double>> p={{70,350},{340,160},{340,350},{205,105},{70,160}};
-    vector<vector<int>> routes={{0,4,1,2,3,0},{0,4,3,1,2,0}};
-    for(int k=0;k<2;++k){double offset=40+480*k;string c=k?green:"#dc2626";s.text(offset+205,75,k?"2-opt: distance 26":"Nearest-Neighbor: distance 33",18);
-        for(size_t j=1;j<routes[k].size();++j){auto [x,y]=p[routes[k][j-1]];auto [a,b]=p[routes[k][j]];s.line(x+offset,y,a+offset,b,c,3);double dx=a-x,dy=b-y,len=hypot(dx,dy);dx/=len;dy/=len;double mx=(x+a)/2+offset,my=(y+b)/2;s.line(mx,my,mx-12*dx+6*dy,my-12*dy-6*dx,c,2);s.line(mx,my,mx-12*dx-6*dy,my-12*dy+6*dx,c,2);}
-        for(size_t i=0;i<p.size();++i){auto [x,y]=p[i];s.circle(x+offset,y,13,i?gray:"#ea580c");s.text(x+offset,y+5,to_string(i),14,"white");}s.text(offset+70,380,"Depot",14);s.text(offset+205,420,k?"0 - 4 - 3 - 1 - 2 - 0":"0 - 4 - 1 - 2 - 3 - 0",16);}
-    s.text(480,462,"Distance reduction: 21.21%",20,green);s.text(480,492,"Illustrative node positions, not geographic coordinates.",15,gray);
+
+
+vector<int> twoOpt(const vector<int>& initialRoute, const vector<vector<double>>& distanceMatrix, int passLimit) {
+    vector<int> route = initialRoute;
+
+    int stopCount = route.size();
+    int passCount = 0;
+    bool routeImproved = true;
+
+    while (routeImproved == true && passCount < passLimit) {
+        routeImproved = false;
+
+        int bestStart = -1;
+        int bestEnd = -1;
+        double bestDifference = 0;
+
+        for (int segmentStart = 1; segmentStart < stopCount - 1; segmentStart++) {
+            double segmentForward = 0;
+            double segmentBackward = 0;
+
+            for (int segmentEnd = segmentStart + 1; segmentEnd < stopCount; segmentEnd++) {
+                segmentForward = segmentForward + distanceMatrix[route[segmentEnd - 1]][route[segmentEnd]];
+                segmentBackward = segmentBackward + distanceMatrix[route[segmentEnd]][route[segmentEnd - 1]];
+
+                int before = route[segmentStart - 1];
+                int first = route[segmentStart];
+                int last = route[segmentEnd];
+                int after;
+
+                if (segmentEnd == stopCount - 1) {
+                    after = route[0];
+                }
+                else {
+                    after = route[segmentEnd + 1];
+                }
+
+                double oldEdges = distanceMatrix[before][first] + segmentForward + distanceMatrix[last][after];
+                double newEdges = distanceMatrix[before][last] + segmentBackward + distanceMatrix[first][after];
+                double difference = newEdges - oldEdges;
+
+                if (difference < bestDifference) {
+                    bestDifference = difference;
+                    bestStart = segmentStart;
+                    bestEnd = segmentEnd;
+                }
+            }
+        }
+
+        if (bestDifference < -0.000001) {
+            route = reverseSegment(route, bestStart, bestEnd);
+            routeImproved = true;
+        }
+
+        passCount = passCount + 1;
+    }
+
+    return route;
 }
-int main(int argc,char** argv){try{
-    fs::path dir=argc>1?argv[1]:".";fs::create_directories(dir);
-    vector<string> names={"Nearest-Neighbor","2-opt","SA (best)"};vector<double> distances={206.8,168.7,166.1}, reductions;
-    for(double d:distances)reductions.push_back((distances[0]-d)/distances[0]*100);
-    bars(dir/"TotalDeliveryRoute.svg","Day 1: Total Delivery Route Distance","Distance (dataset units)",names,distances,250,50,1);
-    bars(dir/"RouteOptimizationImprovement.svg","Day 1: Route Optimization Improvement","Distance reduction (%)",names,reductions,25,5,2,false,"%");
-    bars(dir/"ExecutionTime.svg","Day 1: Execution Time","Time (ms, logarithmic scale)",{"2-opt","SA (average per run)"},{5.0585,2066.29},10000,0,2,true);
-    annealing(dir/"SimulatedAnnealing.svg",{166.1,167.9,174.7,173.0,172.1},168.7);
-    routes(dir/"BeforeAfterDelivery.svg");cout<<"Generated five SVG visualizations in "<<dir<<'\n';
-}catch(const exception& e){cerr<<e.what()<<'\n';return 1;}return 0;}
+// -------------------------------------------------------------------------------------//
+vector<int> simulatedAnnealing(const vector<int>& initialRoute, const vector<vector<double>>& distanceMatrix, double initialTemperature, double coolingRate, double minimumTemperature, int iterationsPerTemperature) {
+    random_device rd;
+    mt19937 generator(rd());
+
+    vector<int> currentRoute = initialRoute;
+    vector<int> bestRoute = initialRoute;
+
+    double currentDistance = calculateRouteDistance(currentRoute, distanceMatrix);
+    double bestDistance = currentDistance;
+    double temperature = initialTemperature;
+
+    while (temperature > minimumTemperature) {
+        for (int i = 0; i < iterationsPerTemperature; i++) {
+            uniform_int_distribution<int> positionDistribution(1, (int)currentRoute.size() - 1);
+
+            int left = positionDistribution(generator);
+            int right = positionDistribution(generator);
+
+            while (left == right) {
+                right = positionDistribution(generator);
+            }
+
+            if (left > right) {
+                swap(left, right);
+            }
+
+            vector<int> newRoute = reverseSegment(currentRoute, left, right);
+
+            double newDistance = calculateRouteDistance(newRoute, distanceMatrix);
+            double difference = newDistance - currentDistance;
+
+            if (difference < 0) {
+                currentRoute = newRoute;
+                currentDistance = newDistance;
+            }
+
+            else {
+                double probability = exp(-difference / temperature);
+                uniform_real_distribution<double> probabilityDistribution(0.0, 1.0);
+                double randomProbability = probabilityDistribution(generator);
+
+                if (randomProbability < probability) {
+                    currentRoute = newRoute;
+                    currentDistance = newDistance;
+                }
+            }
+
+            if (currentDistance < bestDistance) {
+                bestRoute = currentRoute;
+                bestDistance = currentDistance;
+            }
+        }
+
+        temperature = temperature * coolingRate;
+    }
+    return bestRoute;
+}
+
+//----------------------------------------------------------------------------------------//
+
+// Classical MDS: double-center squared symmetric distances, then extract
+// the two largest positive eigenpairs using shifted power iteration.
+vector<Point> layout(const Matrix& d){int n=d.size();Matrix b(n,vector<double>(n));vector<double> mean(n);double grand=0;for(int i=0;i<n;++i)for(int j=0;j<n;++j){double v=(d[i][j]+d[j][i])/2;b[i][j]=v*v;mean[i]+=b[i][j]/n;grand+=b[i][j]/(n*n);}for(int i=0;i<n;++i)for(int j=0;j<n;++j)b[i][j]=-.5*(b[i][j]-mean[i]-mean[j]+grand);double shift=0;for(auto& row:b){double s=0;for(double v:row)s+=abs(v);shift=max(shift,s);}vector<vector<double>> axes;vector<Point> p(n);for(int a=0;a<2;++a){vector<double> v(n),w(n);for(int i=0;i<n;++i)v[i]=sin((i+1)*(a+1)*1.37);for(int k=0;k<2000;++k){for(int i=0;i<n;++i)w[i]=inner_product(b[i].begin(),b[i].end(),v.begin(),0.0)+shift*v[i];for(auto& q:axes){double dot=inner_product(w.begin(),w.end(),q.begin(),0.0);for(int i=0;i<n;++i)w[i]-=dot*q[i];}double norm=sqrt(inner_product(w.begin(),w.end(),w.begin(),0.0));if(norm<1e-12)throw runtime_error("Degenerate layout");for(int i=0;i<n;++i)v[i]=w[i]/norm;}double eig=0;for(int i=0;i<n;++i)eig+=v[i]*inner_product(b[i].begin(),b[i].end(),v.begin(),0.0);axes.push_back(v);for(int i=0;i<n;++i)(a?p[i].y:p[i].x)=v[i]*sqrt(max(0.0,eig));}return p;}
+int main(int argc,char** argv){try{Matrix d=readCSV(argc>1?argv[1]:"data/distance_matrix_3.csv");auto nn=nearestNeighbor(d); auto opt=twoOpt(nn,d,10000); Route sa; double best=1e100; for(int run=0;run<5;++run){auto r=simulatedAnnealing(nn,d,500.0,0.995,0.01,100); double c=calculateRouteDistance(r,d); cout<<"SA run "<<run+1<<": "<<c<<"\n"; if(c<best){best=c;sa=r;}}auto p=layout(d);double xmin=p[0].x,xmax=xmin,ymin=p[0].y,ymax=ymin;for(auto q:p){xmin=min(xmin,q.x);xmax=max(xmax,q.x);ymin=min(ymin,q.y);ymax=max(ymax,q.y);}double scale= min(410/max(1e-9,xmax-xmin),330/max(1e-9,ymax-ymin));for(auto& q:p){q.x=240+(q.x-(xmin+xmax)/2)*scale;q.y=270-(q.y-(ymin+ymax)/2)*scale;}
+ ofstream f("Day3RouteComparison.svg");if(!f)throw runtime_error("Cannot write SVG");f<<fixed<<setprecision(2)<<"<svg xmlns='http://www.w3.org/2000/svg' width='1440' height='535' viewBox='0 0 1440 535'><rect width='1440' height='535' fill='white'/><g font-family='Arial,sans-serif' fill='#172334'><text x='720' y='32' text-anchor='middle' font-size='24' font-weight='bold'>Day 3 | Delivery route optimization</text><text x='720' y='55' text-anchor='middle' font-size='14'>"<<d.size()<<" locations including depot | Same estimated positions in every panel</text>";
+ vector<Route> routes{nn,opt,sa};vector<string> names{"Nearest-neighbor","2-opt","Simulated annealing (best of 5)"},colors{"#64748b","#2563eb","#16805c"};for(int a=0;a<3;++a){double c=calculateRouteDistance(routes[a],d);cout<<names[a]<<": "<<c<<"\n";f<<"<g transform='translate("<<480*a<<",0)'><text x='240' y='87' text-anchor='middle' font-size='20' font-weight='bold'>"<<names[a]<<"</text><polyline fill='none' stroke='"<<colors[a]<<"' stroke-width='1.7' stroke-opacity='.8' points='";for(int i:routes[a])f<<p[i].x<<","<<p[i].y<<" ";f<<p[0].x<<","<<p[0].y<<"'/>";for(size_t i=0;i<p.size();++i)f<<"<circle cx='"<<p[i].x<<"' cy='"<<p[i].y<<"' r='"<<(i==0?6:3)<<"' fill='"<<(i==0?"#e4572e":"#172334")<<"'><title>Location "<<i<<"</title></circle>";f<<"<text x='240' y='465' text-anchor='middle' font-size='19' font-weight='bold'>Distance: "<<c<<"</text><text x='240' y='487' text-anchor='middle' font-size='14'>Reduction: "<<100*(1-c/calculateRouteDistance(nn,d))<<"%</text></g>";}f<<"<text x='720' y='520' text-anchor='middle' font-size='13'>Orange = depot | Positions estimated by classical MDS; lines are route order, not roads. Costs use original directed matrix.</text></g></svg>";
+ ofstream csv("Day3Routes.csv");csv<<"algorithm,step,location\n";for(int a=0;a<3;++a)for(size_t i=0;i<=routes[a].size();++i)csv<<names[a]<<','<<i<<','<<routes[a][i%routes[a].size()]<<'\n';
+ }catch(const exception& e){cerr<<e.what()<<'\n';return 1;}}

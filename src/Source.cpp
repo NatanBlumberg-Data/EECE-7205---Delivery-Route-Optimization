@@ -129,8 +129,8 @@ bool checkData() {
 }
 
 
-vector<int> nearestNeighbor(vector<vector<double>> distanceMatrix) {
-    int n = distanceMatrix.size();
+vector<int> nearestNeighbor(const vector<vector<double>>& distanceMatrix) {
+    int n = (int)distanceMatrix.size();
     int startLocation = 0;
 
     vector<int> route;
@@ -141,7 +141,7 @@ vector<int> nearestNeighbor(vector<vector<double>> distanceMatrix) {
 
     int currentLocation = startLocation;
 
-    while (route.size() < n) {
+    while ((int)route.size() < n) {
         int nearestLocation = -1;
         double shortestDistance = 999999999;
 
@@ -169,10 +169,10 @@ vector<int> nearestNeighbor(vector<vector<double>> distanceMatrix) {
 }
 
 
-double calculateRouteDistance(vector<int> route, vector<vector<double>> distanceMatrix) {
+double calculateRouteDistance(const vector<int>& route, const vector<vector<double>>& distanceMatrix) {
     double totalDistance = 0;
 
-    for (int i = 0; i < route.size() - 1; i++) {
+    for (int i = 0; i < (int)route.size() - 1; i++) {
         totalDistance += distanceMatrix[route[i]][route[i + 1]];
     }
 
@@ -181,21 +181,23 @@ double calculateRouteDistance(vector<int> route, vector<vector<double>> distance
     return totalDistance;
 }
 
-vector<int> reverseSegment(vector<int> route, int left, int right) {
+vector<int> reverseSegment(const vector<int>& route, int left, int right) {
+    vector<int> newRoute = route;
+
     while (left < right) {
-        int temp = route[left];
-        route[left] = route[right];
-        route[right] = temp;
+        int temp = newRoute[left];
+        newRoute[left] = newRoute[right];
+        newRoute[right] = temp;
 
         left = left + 1;
         right = right - 1;
     }
 
-    return route;
+    return newRoute;
 }
 
 
-double twoOptChange(vector<int> route, vector<vector<double>> distanceMatrix, int segmentStart, int segmentEnd) {
+double twoOptChange(const vector<int>& route, const vector<vector<double>>& distanceMatrix, int segmentStart, int segmentEnd) {
     int stopCount = route.size();
 
     int before = route[segmentStart - 1];
@@ -225,7 +227,9 @@ double twoOptChange(vector<int> route, vector<vector<double>> distanceMatrix, in
 }
 
 
-vector<int> twoOpt(vector<int> route, vector<vector<double>> distanceMatrix, int passLimit) {
+vector<int> twoOpt(const vector<int>& initialRoute, const vector<vector<double>>& distanceMatrix, int passLimit) {
+    vector<int> route = initialRoute;
+
     int stopCount = route.size();
     int passCount = 0;
     bool routeImproved = true;
@@ -280,7 +284,7 @@ vector<int> twoOpt(vector<int> route, vector<vector<double>> distanceMatrix, int
     return route;
 }
 // -------------------------------------------------------------------------------------//
-vector<int> simulatedAnnealing(vector<int> initialRoute, vector<vector<double>> distanceMatrix, double initialTemperature, double coolingRate, double minimumTemperature, int iterationsPerTemperature) {
+vector<int> simulatedAnnealing(const vector<int>& initialRoute, const vector<vector<double>>& distanceMatrix, double initialTemperature, double coolingRate, double minimumTemperature, int iterationsPerTemperature) {
     random_device rd;
     mt19937 generator(rd());
 
@@ -364,7 +368,7 @@ int main() {
 
     cout << "Initial Route: ";
 
-    for (int i = 0; i < initialRoute.size(); i++) {
+    for (int i = 0; i < (int)initialRoute.size(); i++) {
         cout << initialRoute[i] << " ";
     }
 

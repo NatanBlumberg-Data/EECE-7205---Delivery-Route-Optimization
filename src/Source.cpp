@@ -397,6 +397,10 @@ int main() {
     double twoOptReduction = initialDistance - twoOptDistance;
     double twoOptPercent = (twoOptReduction / initialDistance) * 100;
 
+    if (initialDistance == 0) {
+        twoOptPercent = 0;
+    }
+
     cout << endl;
     cout << "2-opt Route: ";
 
@@ -453,6 +457,10 @@ int main() {
     double averageAnnealingDistance = totalAnnealingDistance / numberOfRuns;
     double annealingReduction = initialDistance - bestAnnealingDistance;
     double annealingPercent = (annealingReduction / initialDistance) * 100;
+
+    if (initialDistance == 0) {
+        annealingPercent = 0;
+    }
 
     cout << endl;
     cout << "Best Simulated Annealing Route: ";
